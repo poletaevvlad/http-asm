@@ -1,4 +1,5 @@
 %include "diskio.asm"
+%include "urlutils.asm"
 
 %define socket_sc 41
 %define bind_sc 49
@@ -162,75 +163,7 @@ _read_line:
     ret
 
 
-; input: rdi - client's descriptor
-; output: none
-_handle_client:
-    push rbp
-    mov rbp, rsp
-    sub rsp, LINE_BUFFER_SIZE
-    mov rcx, rdi
-    mov r9, rcx        
-    lea rsi, [rbp - LINE_BUFFER_SIZE]
-    call _read_line
-    test rax, rax
-    jz .bad_request
-    
-    lea rdi, [rbp - LINE_BUFFER_SIZE]
-    call _parse_request
-    test rax, rax
-    jz .unsupported_method
 
-    push rax
-    xor rcx, rcx
-    .terminate_path_loop:
-        mov cl, [rax]
-        cmp cl, ' '
-        je .terminate_path_loop_end
-        cmp cl, 13
-        je .terminate_path_loop_end
-        inc rax
-    jmp .terminate_path_loop
-    .terminate_path_loop_end:
-    mov [rax], BYTE 0
-    pop rax
-            
-    mov rsp, rax
-    mov rcx, [pathLength]
-    sub rsp, rcx
-    mov rdi, [path]
-    mov rsi, rsp
-    .strcopy:
-        mov al, [rdi]
-        mov [rsi], al
-        inc rsi
-        inc rdi
-    loop .strcopy
-    
-    mov rsi, r9 ; socket descr.
-    mov rdi, rsp
-    call _serve_file
-    
-    jmp .end
-    
-    .unsupported_method:
-    mov rax, write_sc
-    mov rdi, r9
-    mov rsi, respError405
-    mov rdx, respError405Length
-    syscall
-    jmp .end
-        
-    .bad_request:
-    mov rax, write_sc
-    mov rdi, r9
-    mov rsi, respError400
-    mov rdx, respError400Length
-    syscall
-    
-    .end:
-    mov rsp, rbp
-    pop rbp
-    ret
 
 
 ; input: rdi - socket descr.
