@@ -13,20 +13,24 @@
 %define ENOENT 2
 
 section .data
-    respFile            db      "HTTP/1.0 200 OK", 13, 10, "Content-Type: text/plain", 13, 10, "Connection: Closed", 13, 10, 13, 10
+    respFile            db      "HTTP/1.0 200 OK", 13, 10, "Connection: Closed", 13, 10, 13, 10
     respFileLength      equ     $ - respFile
     
-    respDirPref         db      "HTTP/1.0 200 OK", 13, 10, "Content-Type: text/plain", 13, 10, "Connection: Closed", 13, 10, 13, 10, "<html>"
+    respDirPref         db      "HTTP/1.0 200 OK", 13, 10, "Content-Type: text/html", 13, 10, "Connection: Closed", 13, 10, 13, 10, "<!DOCTYPE html><html>"
     respDirPrefLength   equ     $ - respDirPref
-    respDirItem         db      "<a href=''></a>"
-    respDirItemParts    dq      9, 2, 4, 0
+    respDirItem         db      "<a href='.//'></a><br>"
+    respDirItemParts    dq      11, 3, 8, 0
     respDirPostf        db      "</html>"
     respDirPostfLength  equ     $ - respDirPostf
 
+    respError400        db      "HTTP/1.0 400 Bad Request", 13, 10, "Content-Type: text/plain", 13, 10, "Connection: Closed", 13, 10, 13, 10, "400. Bad Request"
+    respError400Length  equ     $ - respError400
     respError403        db      "HTTP/1.0 403 Forbidden", 13, 10, "Content-Type: text/plain", 13, 10, "Connection: Closed", 13, 10, 13, 10, "403. Forbidden"
     respError403Length  equ     $ - respError403
     respError404        db      "HTTP/1.0 404 Not Found", 13, 10, "Content-Type: text/plain", 13, 10, "Connection: Closed", 13, 10, 13, 10, "404. Not Found"
     respError404Length  equ     $ - respError404
+    respError405        db      "HTTP/1.0 405 Method Not Allowed", 13, 10, "Content-Type: text/plain", 13, 10, "Connection: Closed", 13, 10, 13, 10, "404. Method Not Allowed"
+    respError405Length  equ     $ - respError405
 
 
 section .text
