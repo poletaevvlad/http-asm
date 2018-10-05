@@ -23,6 +23,11 @@ section .data
     respDirPostf        db      "</html>"
     respDirPostfLength  equ     $ - respDirPostf
 
+    error400            db      "400 Bad Request", 0
+    error403            db      "403 Forbidden", 0
+    error404            db      "404 Not Found", 0
+    error405            db      "405 Method Not Allowed", 0
+    
     respError400        db      "HTTP/1.0 400 Bad Request", 13, 10, "Content-Type: text/plain", 13, 10, "Connection: Closed", 13, 10, 13, 10, "400. Bad Request"
     respError400Length  equ     $ - respError400
     respError403        db      "HTTP/1.0 403 Forbidden", 13, 10, "Content-Type: text/plain", 13, 10, "Connection: Closed", 13, 10, 13, 10, "403. Forbidden"
@@ -32,8 +37,29 @@ section .data
     respError405        db      "HTTP/1.0 405 Method Not Allowed", 13, 10, "Content-Type: text/plain", 13, 10, "Connection: Closed", 13, 10, 13, 10, "404. Method Not Allowed"
     respError405Length  equ     $ - respError405
 
+    errorTemplate       incbin  "res/error-template"
+                        db      0
 
 section .text
+
+; input: rdi - pointer to error description
+;        rsi - file descriptor
+_send_error:
+    push rbp
+    mov rbp, rsp
+    push rdi
+    push rdi
+    push rdi
+    
+    mov rdi, errorTemplate
+    mov rdx, rsi
+    lea rsi, [rbp - 24]
+    call _write_template
+    
+    add rsp, 24
+    pop rbp
+    ret
+
 
 ; input: rdi - file descripor
 ; output: rax - mode_t of a file
@@ -253,19 +279,15 @@ _serve_file:
     ; defaulting to "403 Forbidden"
     
     .error_no_access:
-    mov rdi, rbx
-    mov rax, write_sc
-    mov rsi, respError403
-    mov rdx, respError403Length
-    syscall
+    mov rdi, error403
+    mov rsi, rbx
+    call _send_error
     jmp .end
     
     .error_no_file:
-    mov rdi, rbx
-    mov rax, write_sc
-    mov rsi, respError404
-    mov rdx, respError404Length  
-    syscall
+    mov rdi, error404
+    mov rsi, rbx
+    call _send_error
     
     .end:
     pop rdi
