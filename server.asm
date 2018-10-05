@@ -6,19 +6,19 @@
 %define listen_sc 50
 %define accept_sc 43
 %define shutdown_sc 48
+%define setsockopt_sc 54
 
 %define AF_INET 2
 %define SOCK_STREAM 1
+
+%define SOL_SOCKET 1
+%define SO_REUSEADDR 2
 
 %define LINE_BUFFER_SIZE 512
 
 section .data
     method_get db "GET", 0
-    string db "GET /asdf", 13, 10
 
-section .bss
-    path resq 1
-    pathLength resq 1
 
 section .text
 
@@ -30,7 +30,7 @@ _init_server:
 
     mov rax, rdi
     xchg ah, al
-    mov r8, rax
+    mov r9, rax
 
     mov rax, socket_sc
     mov rdi, AF_INET
@@ -39,8 +39,19 @@ _init_server:
     syscall
     cmp rax, 0
     jl .error    
-    
     mov rbx, rax
+    
+    sub rsp, 4
+    mov DWORD [rbp - 4], 1
+   
+    mov rax, setsockopt_sc
+    mov rdi, rbx
+    mov rsi, SOL_SOCKET
+    mov rdx, SO_REUSEADDR
+    lea r10, [rbp - 4]
+    mov r8, 4
+    syscall
+
     sub rsp, 16
     
     mov rcx, 12
@@ -50,7 +61,7 @@ _init_server:
         inc rsi
     loop .mem_zero
     mov [rbp - 16], WORD AF_INET
-    mov [rbp - 14], r8w
+    mov [rbp - 14], r9w
     
     mov rax, bind_sc
     mov rdi, rbx
@@ -75,6 +86,7 @@ _init_server:
     .end:
     pop rbp
     ret
+
 
 
 ; input: rdi - pointer to http request string
@@ -110,6 +122,11 @@ _parse_request:
     jmp .skip_space_loop
 
     .done:
+    cmp cl, '/'
+    jne .skip_add
+    inc rdi
+    .skip_add:
+    
     mov rax, rdi
     jmp .end
     .error:
@@ -134,8 +151,8 @@ _read_line:
         test rdx, rdx
         jz .not_found
         syscall
-        test rax, rax
-        jz .not_found
+        cmp rax, 0
+        jng .not_found
 
         push rdi           
         add r8, rax
@@ -220,19 +237,15 @@ _handle_client:
     jmp .end
     
     .unsupported_method:
-    mov rax, write_sc
-    mov rdi, r9
-    mov rsi, respError405
-    mov rdx, respError405Length
-    syscall
+    mov rdi, error405
+    mov rsi, r9
+    call _send_error
     jmp .end
         
     .bad_request:
-    mov rax, write_sc
-    mov rdi, r9
-    mov rsi, respError400
-    mov rdx, respError400Length
-    syscall
+    mov rdi, error400
+    mov rsi, r9
+    call _send_error
     
     .end:
     mov rsp, rbp
@@ -260,3 +273,5 @@ _server_loop:
     pop rdi
     jmp _server_loop
     ret
+
+

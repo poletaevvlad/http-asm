@@ -1,5 +1,5 @@
 %define write_sc 1
-%define BUFFER_SIZE 4096
+%define BUFFER_SIZE 8
 
 section .text
 
@@ -94,6 +94,39 @@ _buffer_push_template:
 ; input: rdi - buffer start pointer
 ;        rsi - buffer end pointer
 ;        rdx - file descriptor that the buffer will be flushed into
+;        rcx - null-terminated template
+;        r8  - array of temlate field values
+; output: rax - new buffer end point
+; mutates: r8, rcx, rsi
+_buffer_push_template_values:
+    push rbx
+    mov r12, r8
+    .loop:
+        call _buffer_push_template
+        mov rsi, rax
+        mov bl, [rcx]
+        test bl, bl
+        jz .end
+        inc rcx
+
+        push rcx
+        mov rcx, [r12]
+        mov r8, 0xFFFFFFFF
+        call _buffer_push
+        mov rsi, rax
+        add r12, 8
+        pop rcx
+    jmp .loop
+
+    .end:
+    mov rax, rsi
+    pop rbx
+    ret
+
+
+; input: rdi - buffer start pointer
+;        rsi - buffer end pointer
+;        rdx - file descriptor that the buffer will be flushed into
 ; output: none
 ; mutates: rsi, rdi, rdx, rax
 _buffer_flush:
@@ -120,29 +153,15 @@ _write_template:
     push rbp
     mov rbp, rsp
     sub rsp, BUFFER_SIZE
-    mov r11, rsi
-
-    mov rcx, rdi
-    lea rsi, [rbp - BUFFER_SIZE]
-    .loop:
-        lea rdi, [rbp - BUFFER_SIZE]
-        call _buffer_push_template
-        mov rsi, rax
-        mov bl, [rcx]
-        test bl, bl
-        jz .end
-        inc rcx
-        push rcx
-        
-        lea rdi, [rbp - BUFFER_SIZE]
-        mov rcx, [r11]
-        mov r8, 0xFFFFFFFF
-        call _buffer_push
-        add r11, 8
-        pop rcx
-    jmp .loop
     
-    .end:
+    mov rcx, rdi
+    mov r8, rsi
+    lea rdi, [rbp - BUFFER_SIZE]
+    mov rsi, rdi
+    call _buffer_push_template_values
+
+    lea rdi, [rbp - BUFFER_SIZE]
+    mov rsi, rax
     call _buffer_flush
     
     mov rsp, rbp

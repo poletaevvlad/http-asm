@@ -1,6 +1,8 @@
 %include "server.asm"
 %define stderr 1
 %define rt_sigaction_sc 13
+%define SIG_IGN 1
+%define SIGPIPE 13
 
 section .data
     syntax              db    "Usage:", 10, "  http-asm <port> <path>", 10
@@ -8,6 +10,11 @@ section .data
     bindError           db    "http-asm: An error has occured when tried to create and bind TCP socket. ",\
                               "Perhaps a port is already in use?"
     bindErrorLength     equ   $ - bindError
+    
+    
+    testPort db "8080", 0
+    testPath db "/home/vlad/", 0
+    argc     dq 0, testPort, testPath
     
 section .text
     
@@ -70,14 +77,6 @@ _parse_arguments:
     .end:
     ret
 
-section .data
-    
-    testPort db "8080", 0
-    testPath db "/home/vlad/", 0
-    argc     dq 0, testPort, testPath
-
-section .text  
-
 
 global main
 main:
@@ -89,8 +88,25 @@ main:
     call _parse_arguments
     test rax, rax
     jz .error_syntax
+    push rax
     
-    mov rdi, rax
+    sub rsp, 152
+    lea rsi, [rsp + 152]
+    .memzero_loop:
+        sub rsi, 8
+        mov QWORD [rsi], 0
+        cmp rsp, rsi
+    jne .memzero_loop
+    mov QWORD [rbp - 160], SIG_IGN
+    mov rax, rt_sigaction_sc
+    mov rdi, SIGPIPE
+    lea rsi, [rbp - 160]
+    xor rdx, rdx
+    mov r10, 8
+    syscall
+    add rsp, 152
+    
+    pop rdi
     call _init_server
     cmp rax, -1
     je .error_bind

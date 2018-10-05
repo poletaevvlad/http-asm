@@ -12,35 +12,32 @@
 %define EACCESS 13
 %define ENOENT 2
 
+section .bss
+    path resq 1
+    pathLength resq 1
+
 section .data
     respFile            db      "HTTP/1.0 200 OK", 13, 10, "Connection: Closed", 13, 10, 13, 10
     respFileLength      equ     $ - respFile
     
-    respDirPref         db      "HTTP/1.0 200 OK", 13, 10, "Content-Type: text/html", 13, 10, "Connection: Closed", 13, 10, 13, 10, "<!DOCTYPE html><html>"
-    respDirPrefLength   equ     $ - respDirPref
-    respDirItem         db      "<a href='.//'></a><br>"
-    respDirItemParts    dq      11, 3, 8, 0
-    respDirPostf        db      "</html>"
-    respDirPostfLength  equ     $ - respDirPostf
+    dirTemplatePrefix   incbin  "res/dir-template-prefix"
+                        db      0
+    dirTemplatePostfix  incbin  "res/dir-template-postfix"
+    dirTemplatePostfixLength equ $ - dirTemplatePostfix
+    dirTemplateEntry    db      '    <a href="/%%">%</a><br>', 13, 10, 0
 
     error400            db      "400 Bad Request", 0
     error403            db      "403 Forbidden", 0
     error404            db      "404 Not Found", 0
     error405            db      "405 Method Not Allowed", 0
     
-    respError400        db      "HTTP/1.0 400 Bad Request", 13, 10, "Content-Type: text/plain", 13, 10, "Connection: Closed", 13, 10, 13, 10, "400. Bad Request"
-    respError400Length  equ     $ - respError400
-    respError403        db      "HTTP/1.0 403 Forbidden", 13, 10, "Content-Type: text/plain", 13, 10, "Connection: Closed", 13, 10, 13, 10, "403. Forbidden"
-    respError403Length  equ     $ - respError403
-    respError404        db      "HTTP/1.0 404 Not Found", 13, 10, "Content-Type: text/plain", 13, 10, "Connection: Closed", 13, 10, 13, 10, "404. Not Found"
-    respError404Length  equ     $ - respError404
-    respError405        db      "HTTP/1.0 405 Method Not Allowed", 13, 10, "Content-Type: text/plain", 13, 10, "Connection: Closed", 13, 10, 13, 10, "404. Method Not Allowed"
-    respError405Length  equ     $ - respError405
-
     errorTemplate       incbin  "res/error-template"
                         db      0
 
+    rootDirectory       db      "[root]", 0
+
 section .text
+
 
 ; input: rdi - pointer to error description
 ;        rsi - file descriptor
@@ -119,58 +116,75 @@ _send_file_contents:
 ;        rsi - buffer end pointer
 ;        rdx - file descriptor that the buffer will be flushed into
 ;        rcx - data to be pushed into the buffer
-;        r8  - length of the data
+;        r8  - parent path
 ; output: rax - new buffer end point
-; mutates: r8, rcx, rsi
+; mutates: r8, rsi
 _push_dir_entry:
-    push r10
-    push r9
-    push rbx
-    mov rax, respDirItemParts
-    mov rbx, rcx
-    mov rbx, rcx
-    mov r9, r8
-    mov r10, respDirItem
-    .loop:
-        mov rcx, r10
-        push rax
-        mov r8, [rax]
-        call _buffer_push
-        mov rsi, rax
-        pop rax
-        
-        mov r8, [rax]
-        add r10, r8
-        add rax, 8
-        mov r8, [rax]
-        test r8, r8
-        jz .end
+    push rcx
+    push rcx
+    push r8
+    mov rcx, dirTemplateEntry
+    mov r8, rsp
+    call _buffer_push_template_values
+    add rsp, 16
+    pop rcx
+    ret
 
-        push rax
-        mov r8, r9
-        mov rcx, rbx
-        call _buffer_push
-        mov rsi, rax
-        pop rax
-    jmp .loop
+
+; input: rdi - pointer to file path
+; output: rax - poitner to the file name
+;         r13 - end of directory name
+_get_file_name:
+    push rcx
+    mov cl, [rdi]
+    test cl, cl
+    jz .root
     
+    .loop_to_end:
+        mov cl, [rdi]
+        test cl, cl
+        jz .end_found
+        inc rdi
+    jmp .loop_to_end
+    .end_found:
+    dec rdi
+    mov [rdi], WORD 0
+    mov r13, rdi
+    dec rdi
+    .loop_name:
+        dec rdi
+        mov cl, [rdi]
+        cmp cl, '/'
+    jne .loop_name
+    inc rdi
+    mov rax, rdi
+    jmp .end
+
+    .root:
+    mov rax, rootDirectory
     .end:
-    mov rax, rsi
-    pop rbx
-    pop r9
-    pop r10
+    pop rcx
     ret
 
 
 ; input: rdi - destination file descriptor
 ;        rsi - source file descriptor
+;        rdx - file path
 ; output: none
 _send_directory_contents:
     push rbp
     mov rbp, rsp
     sub rsp, 4096 + BUFFER_SIZE
     mov rbx, rdi
-           
+    mov rdi, rdx
+    mov rax, [pathLength]
+    add rdx, rax
+    mov r14, rdx
+    mov rdi, rdx
+    call _get_file_name
+    push rax
+    push rax
+               
     mov rax, getdents_sc
     mov rdi, rsi
     lea rsi, [rbp - 4096]
@@ -178,14 +192,17 @@ _send_directory_contents:
     syscall
     lea r10, [rbp - 4096]
     add r10, rax
-
+    
     lea rdi, [rbp - 4096 - BUFFER_SIZE]
     mov rsi, rdi
     mov rdx, rbx
-    lea rcx, [respDirPref]
-    mov r8, respDirPrefLength
-    call _buffer_push
+    mov rcx, dirTemplatePrefix
+    mov r8, rsp
+    call _buffer_push_template_values
     mov r9, rax
+    mov [r13], WORD '/'
+    add rsp, 16
+
 
     lea rsi, [rbp - 4096]            
     .loop:
@@ -200,9 +217,9 @@ _send_directory_contents:
         push rsi
         lea rdi, [rbp - 4096 - BUFFER_SIZE]
         mov rdx, rbx
-        mov r8, rcx
         lea rcx, [rsi + 18]
         mov rsi, r9
+        mov r8, r14
         call _push_dir_entry
         mov r9, rax
         pop rsi    
@@ -215,23 +232,22 @@ _send_directory_contents:
         cmp rsi, r10
     jb .loop
 
+
     lea rdi, [rbp - 4096 - BUFFER_SIZE]
     mov rsi, r9
     mov rdx, rbx
-    lea rcx, [respDirPostf]
-    mov r8, respDirPostfLength
+    mov rcx, dirTemplatePostfix
+    mov r8, dirTemplatePostfixLength
     call _buffer_push
-
-    lea rdi, [rbp - 4096 - BUFFER_SIZE]
+    
     mov rsi, rax
-    mov rdx, rbx
     call _buffer_flush
     
     mov rsp, rbp
     pop rbp
     ret
-
-
+    
+    
 ; input: rdi - address of zero-terminated file name
 ;        rsi - socket descriptor
 ; output: none
@@ -242,6 +258,7 @@ _serve_file:
     syscall
     cmp eax, 0
     jl .error
+    mov r9, rdi
     
     push rax
     mov rdi, rax
@@ -264,6 +281,22 @@ _serve_file:
     .directory:
     mov rsi, rdi
     mov rdi, rbx
+    mov rdx, r9
+
+    xor rbx, rbx
+    .dir_end_loop:
+        mov cl, [rdx + rbx]
+        test cl, cl
+        jz .dir_end_found
+        inc rbx
+    jmp .dir_end_loop
+    .dir_end_found:
+    mov cl, [rdx + rbx - 1]
+    cmp cl, '/'
+    je .skip_add_slash
+    mov BYTE [rdx + rbx], '/'
+    mov BYTE [rdx + rbx + 1], 0
+    .skip_add_slash:
     call _send_directory_contents
     jmp .end
     
