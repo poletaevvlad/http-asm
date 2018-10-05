@@ -11,11 +11,6 @@ section .data
                               "Perhaps a port is already in use?"
     bindErrorLength     equ   $ - bindError
     
-    
-    testPort db "8080", 0
-    testPath db "/home/vlad/", 0
-    argc     dq 0, testPort, testPath
-    
 section .text
     
 ; input: rdi - null terminated string
@@ -80,10 +75,7 @@ _parse_arguments:
 
 global main
 main:
-    mov rbp, rsp; for correct debugging
-    
-    mov rdi, 3
-    mov rsi, argc
+    mov rbp, rsp
     
     call _parse_arguments
     test rax, rax
