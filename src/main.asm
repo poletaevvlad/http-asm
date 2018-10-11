@@ -1,6 +1,7 @@
 %include "server.asm"
 %define stderr 1
 %define rt_sigaction_sc 13
+%define exit_sc 60
 %define SIG_IGN 1
 %define SIGPIPE 13
 
@@ -73,8 +74,8 @@ _parse_arguments:
     ret
 
 
-global main
-main:
+global _start
+_start:
     mov rbp, rsp
     
     call _parse_arguments
@@ -122,5 +123,6 @@ main:
     syscall
     
     .end:
-    xor rax, rax
-    ret
+    mov rax, exit_sc
+    xor rdi, rdi
+    syscall

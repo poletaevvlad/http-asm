@@ -2,7 +2,7 @@ compiler := nasm
 compile_flags := -f elf64
 
 linker := gcc
-link_flags := -fno-pie -no-pie -m64
+link_flags := -fno-pie -no-pie -m64 -nostdlib
 
 src_root := ./src/
 main_file := $(src_root)/main.asm
