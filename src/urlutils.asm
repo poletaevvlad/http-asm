@@ -106,3 +106,52 @@ _url_decode:
     .end:
     pop rsi
     ret
+    
+; input: rdi - zero-terminated url
+; output: rax - contains 0 if URL is invalid, non-zero otherwise
+; mutates: rdi
+_check_dot_segments:
+    push rcx
+    mov cl, [rdi]
+    test cl, cl
+    jz .end
+    cmp cl, '/'
+    jne .loop_over_segments
+    inc rdi
+
+    .loop_over_segments:
+        xor rax, rax
+        .counting_dots:
+           mov cl, [rdi]
+           cmp cl, '.'
+           jne .dots_end
+           inc rdi
+           inc rax
+        jmp .counting_dots
+        
+        .dots_end:
+            test cl, cl
+            jz .segment_end
+            cmp cl, '/'
+            je .segment_end
+            xor rax, rax
+            inc rdi
+            mov cl, [rdi]
+        jmp .dots_end
+        
+        .segment_end:
+        cmp rax, 2
+        je .fail
+        test cl, cl
+        jz .end
+        inc rdi
+    jmp .loop_over_segments
+        
+    .fail:
+    mov rax, 0
+    jmp .post
+    .end:
+    mov rax, 1    
+    .post:
+    pop rcx
+    ret

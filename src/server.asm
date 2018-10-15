@@ -196,9 +196,9 @@ _handle_client:
     lea rdi, [rbp - LINE_BUFFER_SIZE]
     call _parse_request
     test rax, rax
-    jz .unsupported_method
-
+    jz .unsupported_method   
     push rax
+    
     xor rcx, rcx
     .terminate_path_loop:
         mov cl, [rax]
@@ -215,8 +215,15 @@ _handle_client:
     mov rdi, [rsp]
     push rdi
     call _url_decode
+    
+    mov rdi, [rsp + 8]
+    call _check_dot_segments
+    test rax, rax
+    jz .bad_request
+    
     pop rdi
     pop rax
+    
             
     mov rsp, rax
     mov rcx, [pathLength]
