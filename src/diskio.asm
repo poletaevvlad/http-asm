@@ -162,6 +162,7 @@ _get_file_name:
 
     .root:
     mov rax, rootDirectory
+    lea r13, [rdi - 1]
     .end:
     pop rcx
     ret
