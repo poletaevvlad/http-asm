@@ -74,8 +74,7 @@ _parse_arguments:
     ret
 
 
-global _start
-_start:
+main:
     mov rbp, rsp
     
     call _parse_arguments
@@ -123,6 +122,17 @@ _start:
     syscall
     
     .end:
+    xor rax, rax
+    ret
+
+global _start
+_start:
+    xor ebp, ebp
+    
+    mov rdi, [rsp]
+    lea rsi, [rsp  + 8]
+    call main
+
+    mov rdi, rax
     mov rax, exit_sc
-    xor rdi, rdi
     syscall
