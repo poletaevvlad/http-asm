@@ -59,8 +59,14 @@ _parse_arguments:
         test cl, cl
         jz .end_loop
         inc rax
-     jmp .strlen_loop
+    jmp .strlen_loop
     .end_loop:
+    mov cl, [rdi + rax - 1]
+    cmp cl, '/'
+    je .skip_append_slash
+    mov [rdi + rax], BYTE '/'
+    inc rax
+    .skip_append_slash:
     mov [pathLength], rax
             
     mov rdi, [rsi + 8]

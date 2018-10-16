@@ -43,4 +43,4 @@ In order to run http-asm server the following syntax must be used:
 http-asm <PORT> <PATH>
 ```
 
-Where `<PORT>` is a valid TCP/IP port number and `<PATH>` is an absolute or relative path to the document root.
+Where `<PORT>` is a valid TCP/IP port number and `<PATH>` is a path to the document root.
